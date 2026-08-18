@@ -9,7 +9,7 @@ Everything returned by this module is already in the OSeMOSYS units (GW, TWh, $m
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 import numpy as np
 import pandas as pd
@@ -318,7 +318,3 @@ def plot_wall_clock(osemosys_log: SolveLog, pypsa_log: SolveLog, ax: Axes) -> Ax
     ax.margins(x=0.45)
     return ax
 
-
-def as_table(frame: pd.DataFrame, decimals: int = 2) -> Any:
-    """Round for display without mutating the caller's frame."""
-    return frame.round(decimals)

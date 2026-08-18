@@ -71,8 +71,14 @@ def _lp_shape(model: Any) -> dict[str, int]:
 
 
 def _solver_options(solver: str, threads: int, crossover: bool) -> dict[str, Any]:
+    """Solver options matching the reference runs.
+
+    ``solver="hipo"`` is what the reference HiGHS runs logged -- the new
+    interior-point solver in HiGHS 1.15.1. ("ipm" routes to the same code path,
+    but the reference invocation is reproduced verbatim here.)
+    """
     if solver == "highs":
-        options: dict[str, Any] = {"threads": threads, "solver": "ipm", "run_crossover": "on"}
+        options: dict[str, Any] = {"threads": threads, "solver": "hipo", "run_crossover": "on"}
         if not crossover:
             options["run_crossover"] = "off"
         return options
@@ -157,6 +163,9 @@ def run_osemosys(
     """Restrict build years to match PyPSA, then build, solve and save."""
     from tz.osemosys import Model
 
+    # tz-osemosys 0.4.0 exposes the built linopy model, the solution dataset and
+    # the objective only as private attributes; there is no public accessor. The
+    # version is pinned in requirements.txt for exactly this reason.
     outdir.mkdir(parents=True, exist_ok=True)
 
     restricted = restrict_build_years(json.loads(json.dumps(model)), build_year_step)

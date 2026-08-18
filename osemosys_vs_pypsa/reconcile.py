@@ -27,7 +27,6 @@ if TYPE_CHECKING:
     import pypsa
     import xarray as xr
 
-MWH_PER_TWH = 1e6
 DOLLARS_PER_MILLION = 1e6
 
 Convention = Literal["osemosys", "pypsa"]

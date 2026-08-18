@@ -9,8 +9,7 @@ pypsa==1.2.4
 tz-osemosys==0.4.0
 linopy==0.9.0
 
-highspy==1.15.1
-highspy-extras==1.15.1
+highspy[extras]==1.15.1
 
 numpy==2.3.3
 pandas==2.2.3

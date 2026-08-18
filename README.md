@@ -50,30 +50,46 @@ run_benchmark.py MODEL --outdir DIR
   --skip-pypsa / --skip-osemosys
 ```
 
+
+
 ### Choose `--build-year-step` deliberately
 
 This is the setting that decides whether your run finishes. Measured on 16 cores /
 121 GB, HiGHS 1.15.1 with 8 threads:
 
-| step | side | LP variables | HiGHS | Gurobi |
-|---|---|---|---|---|
-| 1 | OSeMOSYS | 499,184 | **optimal, 965 s** | optimal, 36 s |
-| 1 | PyPSA | 6,622,352 | **never finished — still in simplex cleanup at 23,720 s (6.6 h)** | optimal, 908 s |
-| 5 | OSeMOSYS | 499,184 | see `runs/` after your own run | — |
-| 5 | PyPSA | 1,701,240 | see `runs/` after your own run | — |
 
-**With HiGHS only, use `--build-year-step 5`.** At step 1 the PyPSA side needs roughly
-a 12 GB working set and, more importantly, its interior-point solution sits on a huge
-degenerate face that crossover cannot clear — it made 6.02 M dual pushes, ended
-`imprecise`, and fell back to dual simplex without converging. Step 1 is reproducible
-with Gurobi, which sidesteps this by solving with dual simplex outright.
+| step | side     | LP variables | HiGHS                                                             | Gurobi         |
+| ---- | -------- | ------------ | ----------------------------------------------------------------- | -------------- |
+| 1    | OSeMOSYS | 499,184      | **optimal, 965 s**                                                | optimal, 36 s  |
+| 1    | PyPSA    | 6,622,352    | **never finished — still in simplex cleanup at 23,720 s (6.6 h)** | optimal, 908 s |
+| 5    | OSeMOSYS | 499,184      | optimal, 283 s                                    | —              |
+| 5    | PyPSA    | 1,701,240    | **optimal, 1,096 s**                                    | —              |
+
+
+**With HiGHS only, use `--build-year-step 5`** — measured, not assumed: the whole
+comparison finishes in about 25 minutes, and both sides reach `Optimal`.
+
+At step 1 the PyPSA side needs roughly a 12 GB working set and, more importantly, its
+interior-point solution sits on a huge degenerate face that crossover cannot clear —
+6.02 M dual pushes, ending `imprecise`, then a dual-simplex fallback that never
+converged. Step 5 is the same story with the pressure released: **1.35 M dual pushes
+and crossover `optimal`**. That is the mechanism behind lever 1 below, and the reason
+coarsening the vintage axis buys more than the 4x variable reduction suggests.
+
+The step-5 objectives are higher than step 1 (604,008 against 597,457 $m on the
+OSeMOSYS side) because five-yearly investment is less free than yearly — a real
+modelling cost of the speedup, not an error. The framework gap is unchanged at
++1.69 % against +1.68 %.
+
+Step 1 is reproducible with Gurobi, which sidesteps the problem by solving with
+dual simplex outright.
 
 `--build-year-step 1` is what `REPORT.md` measures. Anything coarser is a valid
 comparison but not *that* comparison.
 
-## Two things that will bite you
+## Two things to be awared of
 
-**1. `TotalDiscountedCost` in `solution.nc` is not the OSeMOSYS LP objective.**
+**1.** `TotalDiscountedCost` **in** `solution.nc` **is not the OSeMOSYS LP objective.**
 linopy drops the objective's constant term, so the solver minimises everything except
 fixed O&M on `ResidualCapacity`, while the saved variable includes it — 961,739 $m
 saved against a 597,457 $m objective. PyPSA omits the same term for an unrelated
@@ -115,19 +131,29 @@ tests/                        pytest; skips artefact-dependent tests if not unpa
 python -m pytest tests/ -q     # 20 tests, ~7 s
 ```
 
+
+
 ## Reference artefacts
 
 `artifacts.tar.gz` holds the input model and two complete reference runs, both at
 `--build-year-step 1`:
 
-| run | contents | use it for |
-|---|---|---|
-| `reference/step1-gurobi` | both sides solved to optimality | results agreement |
-| `reference/step1-highs` | the `REPORT.md` solve-time comparison; PyPSA has a log and no solved network because it never finished | the wall-clock story |
+
+| run                      | contents                                                                                               | use it for           |
+| ------------------------ | ------------------------------------------------------------------------------------------------------ | -------------------- |
+| `reference/step1-gurobi` | both sides solved to optimality                                                                        | results agreement    |
+| `reference/step1-highs`  | the `REPORT.md` solve-time comparison; PyPSA has a log and no solved network because it never finished | the wall-clock story |
+
 
 Their `manifest.json` files are marked `reconstructed: true` — these runs predate
 `run_benchmark.py`, so their manifests were rebuilt from the solver logs by
 `bundle_reference_artifacts.py`.
+
+The model is named `japan-capacity-expansion_v31` throughout. The upstream id named a
+client, and `bundle_reference_artifacts.py --model-id` renames it in the bundle: the
+two `model.json` files and the `network_name` attribute of each PyPSA netCDF. Only
+those fields change — the netCDF edit sets one HDF5 attribute in place, and the
+objective and every `p_nom_opt` are identical before and after.
 
 The labelled `.lp` files behind the row-by-row analysis in `REPORT.md` are **not**
 bundled: they are 0.9 GB (OSeMOSYS) and 5.8 GB (PyPSA). Regenerate with

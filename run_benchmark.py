@@ -197,7 +197,12 @@ def run_osemosys(
 
     objective = None
     if status == "ok":
-        osemosys_model._solution.to_netcdf(outdir / "solution.nc")
+        # save_netcdf merges the input parameters into the solution. Both are
+        # needed: reconcile.py reads FixedCost, ResidualCapacity and DiscountRate
+        # to rebuild the objective constant that linopy drops, and none of those
+        # are solution variables. This is also the schema of the reference
+        # artefacts, so one loader serves both.
+        osemosys_model.save_netcdf(outdir / "solution.nc")
         objective = float(osemosys_model._objective)
 
     return {

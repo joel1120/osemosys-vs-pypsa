@@ -2,10 +2,11 @@
 # ruff: noqa: T201
 """Repackage the original benchmark artefacts into the ``run_benchmark.py`` layout.
 
-Maintainer script, run once to produce the bundle that ``fetch_artifacts.sh``
-downloads. The original runs predate ``run_benchmark.py``, so their manifests are
-reconstructed here from the solver logs and the saved artefacts, and flagged
-``reconstructed: true``.
+Maintainer script, not something a user of this repo needs: it produces the
+``artifacts.tar.gz`` that ``unpack_artifacts.sh`` unpacks. A new scenario does NOT
+need this script -- ``run_benchmark.py`` writes its own manifest. This exists only
+because the original runs predate ``run_benchmark.py``, so their manifests are
+reconstructed here from the solver logs and flagged ``reconstructed: true``.
 
 Two reference runs are published, because no single original run has both halves:
 
@@ -14,7 +15,8 @@ Two reference runs are published, because no single original run has both halves
   PyPSA did not, so it has a log and no solved network.
 
     python bundle_reference_artifacts.py --source /path/to/ce_pypsa_benchmarking \
-        --raw-model /path/to/local-runs/builds/testing/model.json --outdir artifacts
+        --raw-model /path/to/model.json --outdir artifacts \
+        --model-id japan-capacity-expansion_v31
 """
 
 from __future__ import annotations
@@ -66,6 +68,48 @@ RUNS = {
 }
 
 
+def _model_id(path: Path) -> str:
+    return json.loads(path.read_text())["id"]
+
+
+def _rewrite_model_id(path: Path, new_id: str) -> None:
+    """Replace the model id, and long_name where it merely echoes the id."""
+    model = json.loads(path.read_text())
+    old_id = model["id"]
+    model["id"] = new_id
+    if model.get("long_name") == old_id:
+        model["long_name"] = new_id
+    path.write_text(json.dumps(model))
+    print(f"  {path}: id {old_id!r} -> {new_id!r}")
+
+
+def _rewrite_network_name(path: Path, old_id: str, new_id: str) -> None:
+    """Rewrite a PyPSA netCDF's network_name attribute in place.
+
+    Edited as a single HDF5 attribute rather than by round-tripping the dataset,
+    so the solved values are untouched (verified: objective and every p_nom_opt
+    identical before and after).
+    """
+    import netCDF4
+
+    with netCDF4.Dataset(path, "a") as dataset:
+        name = getattr(dataset, "network_name", None)
+        if name and old_id in name:
+            dataset.network_name = name.replace(old_id, new_id)
+            print(f"  {path}: network_name -> {dataset.network_name!r}")
+
+
+def _scrub_model_id(outdir: Path, old_id: str, new_id: str) -> None:
+    """Rename the model everywhere it is recorded in the bundle."""
+    print(f"\nscrubbing model id {old_id!r} -> {new_id!r}:")
+    for name in ("model.json", "reference/model_simplified.json"):
+        path = outdir / name
+        if path.exists():
+            _rewrite_model_id(path, new_id)
+    for path in sorted(outdir.rglob("*.nc")):
+        _rewrite_network_name(path, old_id, new_id)
+
+
 def _copy(source: Path, destination: Path) -> int:
     if not source.exists():
         raise FileNotFoundError(f"missing source artefact: {source}")
@@ -111,6 +155,11 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--raw-model", type=Path, required=True, help="raw tz-osemosys model.json")
     parser.add_argument("--simplified-model", type=Path, default=None, help="the model.json actually solved")
     parser.add_argument("--outdir", type=Path, default=Path("artifacts"))
+    parser.add_argument(
+        "--model-id",
+        default=None,
+        help="rename the model in the bundle (the upstream id names a client)",
+    )
     args = parser.parse_args(argv)
 
     args.outdir.mkdir(parents=True, exist_ok=True)
@@ -121,6 +170,9 @@ def main(argv: list[str] | None = None) -> int:
 
     for name, spec in RUNS.items():
         build_run(name, spec, args.source, args.outdir)
+
+    if args.model_id:
+        _scrub_model_id(args.outdir, _model_id(args.raw_model), args.model_id)
 
     total = sum(p.stat().st_size for p in args.outdir.rglob("*") if p.is_file())
     print(f"\nbundle total: {total / 1e6:.1f} MB in {args.outdir}")

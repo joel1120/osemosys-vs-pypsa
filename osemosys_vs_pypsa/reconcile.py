@@ -42,6 +42,20 @@ def _discount_factor(solution: xr.Dataset, convention: Convention) -> xr.DataArr
     return (1.0 + solution.DiscountRate) ** -((solution.YEAR - first_year) + offset)
 
 
+#: Input parameters -- not solution variables -- that the reconciliation needs.
+REQUIRED_PARAMETERS = ("FixedCost", "ResidualCapacity", "DiscountRate")
+
+
+def _require_parameters(solution: xr.Dataset) -> None:
+    missing = [name for name in REQUIRED_PARAMETERS if name not in solution.data_vars]
+    if missing:
+        raise KeyError(
+            f"solution dataset is missing input parameters {missing}. It was probably "
+            "saved from Model._solution alone; save it with Model.save_netcdf(), which "
+            "merges the parameters in, or the objective constant cannot be rebuilt."
+        )
+
+
 def residual_fixed_om(solution: xr.Dataset, convention: Convention = "osemosys") -> float:
     """Discounted fixed O&M charged on ``ResidualCapacity``, in $m.
 
@@ -50,6 +64,7 @@ def residual_fixed_om(solution: xr.Dataset, convention: Convention = "osemosys")
     with it -- but it must be added to both sides, or neither, before comparing
     against a cost total that includes it.
     """
+    _require_parameters(solution)
     charge = solution.FixedCost * solution.ResidualCapacity * _discount_factor(solution, convention)
     return float(charge.sum())
 

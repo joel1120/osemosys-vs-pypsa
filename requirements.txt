@@ -1,0 +1,25 @@
+# Pinned to the versions the reported benchmark ran on. Solve times are only
+# comparable against REPORT.md on these exact versions -- HiGHS in particular
+# changes interior-point behaviour between releases.
+#
+#   python -m venv .venv && . .venv/bin/activate
+#   pip install -r requirements.txt
+
+pypsa==1.2.4
+tz-osemosys==0.4.0
+linopy==0.9.0
+
+highspy==1.15.1
+highspy-extras==1.15.1
+
+numpy==2.3.3
+pandas==2.2.3
+xarray==2025.3.1
+scipy==1.15.2
+netcdf4==1.7.2
+h5netcdf==1.6.1
+dask==2025.4.0
+
+matplotlib==3.10.1
+ipykernel==7.3.0
+jupyterlab>=4.0

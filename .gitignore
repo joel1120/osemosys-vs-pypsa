@@ -1,0 +1,17 @@
+__pycache__/
+*.py[cod]
+.venv/
+.ipynb_checkpoints/
+.pytest_cache/
+.ruff_cache/
+
+# Your own runs. Regenerate with run_benchmark.py; never commit.
+runs/
+
+# Unpacked by unpack_artifacts.sh from the committed artifacts.tar.gz.
+artifacts/
+
+# Labelled LP exports: 0.9 GB and 5.8 GB at build_year_step 1.
+*.lp
+*.sol
+*.bas
